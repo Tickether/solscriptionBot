@@ -1,0 +1,20 @@
+{
+  "name": "solscription",
+  "version": "1.0.0",
+  "description": "discord bot to verify subscriptions",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "0xGeeLoko",
+  "license": "ISC",
+  "dependencies": {
+    "@replit/database": "^2.0.2",
+    "axios": "^1.2.2",
+    "discord.js": "^12.1.1",
+    "dotenv": "^16.0.3",
+    "ethers": "^5.7.2",
+    "fs": "^0.0.1-security",
+    "node-fetch": "^2.1.0"
+  }
+}
