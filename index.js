@@ -112,21 +112,6 @@ async function fetchOpenseaBio(address) {
         console.log(err);
     }
 }
-/*
-// check opensea bio for added code
-async function openseaBioChange(address, code) {
-    
-    try {
-        // if code added to bio (included in bio) assign role 
-        if (openseaBio.includes(code)) {
-            return true                      
-        }
-    } catch(err) {
-        console.log(err);
-    }
-}
-*/
-
 
 
 
@@ -205,32 +190,61 @@ client.on("message", async message => {
                         
                         // Send message with code to the user
                         await message.reply(`Your Wallet ownes subscription token [${solsTokenOwned}] expring on [${new Date(userExpires * 1000)}] Enter code [${code}] into your Opensea Bio to confirm your OWnership and get discord role`);
-                        
-                        
-                        
-                        //  setIterval check code
-                        nIntervId = setInterval(async () => {
-                            // code to check the database goes here
-                            // opensea bio get & check for code included in bio
-                            const openseaBio = await fetchOpenseaBio(address);
-                            console.log(openseaBio);
-                        }, 15000)
+                        let openseaBio =  await fetchOpenseaBio(address);
+                        if (openseaBio === null) { // empty opensea Bio never set
 
-                        if (openseaBio.includes(code)) {
-                            clearInterval(nIntervId);
+                            do {
+                                openseaBio = await fetchOpenseaBio(address);
+                                console.log(openseaBio)
+
+                                // wait for 2 seconds before running the loop again
+                                setTimeout(() => {}, 15000);
+                            } while (openseaBio === null || openseaBio === "undefined");
+                            //loop exit: true
+                            // checkfor code after
+                            do {
+                                //check opensea
+                                openseaBio = await fetchOpenseaBio(address);
+                                console.log(openseaBio)
+    
+                                // wait for 2 seconds before running the loop again
+                                setTimeout(() => {}, 15000);
+                                
+                                // check opensea bio for added code    
+                            } while (openseaBio.includes(code) === false);
+                            //loop exit: true
+
+                            const guild =  message.guild;
+                            const role = guild.roles.cache.get('1068292965606375425');
+                            const member = guild.members.cache.get(message.author.id);
+                            member.roles.add(role);
+                            await setKey(message.author.id, [userOf, solsTokenOwned, userExpires])
+                            
+                            // Send message role added msg to the user
+                            message.reply(`Your discord role assigned you can view all locked channels unlocked by the role`);                        
+                            
+                        } else { // opensea with bio info already set
+                            do {
+                                //check opensea
+                                openseaBio = await fetchOpenseaBio(address);
+                                console.log(openseaBio)
+    
+                                // wait for 2 seconds before running the loop again
+                                setTimeout(() => {}, 15000);
+                                
+                                // check opensea bio for added code    
+                            } while (openseaBio.includes(code) === false);
+                            //loop exit: true
+                            
                             const guild =  message.guild;
                             const role = guild.roles.cache.get('1068292965606375425');
                             const member = guild.members.cache.get(message.author.id);
                             member.roles.add(role);
                             //await setKey(message.author.id, [userOf, solsTokenOwned, userExpires])
                             
-                            // Send message with code to the user
-                            message.reply(`Your discord role assigned you can view all locked channels unlocked by the role`);
+                            // Send message role added msg to the user
+                            message.reply(`Your discord role assigned you can view all locked channels unlocked by the role`);                        
                         }
-                        
-                        //console.log(nIntervId)
-                        
-            
                     } else {
                         message.reply("subscription not active, please activate it & try again")
                     }                    
