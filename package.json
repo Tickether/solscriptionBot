@@ -4,6 +4,7 @@
   "description": "discord bot to verify subscriptions",
   "main": "index.js",
   "scripts": {
+    "start": "nodemon index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "0xGeeLoko",
@@ -15,6 +16,8 @@
     "dotenv": "^16.0.3",
     "ethers": "^5.7.2",
     "fs": "^0.0.1-security",
-    "node-fetch": "^2.1.0"
-  }
+    "node-fetch": "^2.1.0",
+    "nodemon": "^2.0.20"
+  },
+  "proxy": "http://localhost:8000/api/"
 }

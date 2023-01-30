@@ -1,15 +1,13 @@
-require('dotenv').config(); //initialize dotenv
-const Discord = require('discord.js'); //import discord.js
-const ethers = require('ethers'); // import ethers
+require('dotenv').config(); 
+const Discord = require('discord.js');
+const ethers = require('ethers'); 
 const fs = require('fs');
 const axios = require('axios');
-const Database = require('@replit/database');
 
 
 
-const db = new Database();
-
-const client = new Discord.Client(); //create new client
+//create new client
+const client = new Discord.Client(); 
 
 // Replace YOUR_PROVIDER with the URL of a JSON-RPC provider
 const provider = new ethers.providers.JsonRpcProvider('https://goerli.infura.io/v3/8231230ce0b44ec29c8682c1e47319f9');
@@ -20,62 +18,19 @@ const solscriptionAddress = '0x611Ea02425A83Ab6018e7149166ECf2E48D8F0CA';
 // Replace YOUR_ABI_FILE with the path to the JSON file containing the ABI
 const abiFile = './Solscription.json';
 
+// read in content from file
 const solscriptionAbi = JSON.parse(fs.readFileSync(abiFile, 'utf8'));
 
+// Instanciate Contract 
 const solscriptionContract = new ethers.Contract(solscriptionAddress, solscriptionAbi.abi, provider);
 
+
+// axios header with opensea apiKey
 const axiosInstance = axios.create({
     headers: {
         'token': `${process.env.BEARER_TOKEN}`
     }
 });
-
-// set new key & value
-async function setKey(key, value){
-    try {
-        await db.set(key, value)
-    } catch (error) {
-        console.log(err);
-        
-    }
-    
-}
-
-// set new key & value
-async function getKeyValue(key){
-    try {
-        let value = await db.get(key)
-        return value
-    } catch (err) {
-        console.log(err);
-        
-    }
-    
-}
-
-// set new key & value
-async function deleteKey(key){
-    try {
-        await db.delete(key)
-    } catch (err) {
-        console.log(err);
-        
-    }
-    
-}
-
-// set new key & value
-async function listKeys(){
-    try {
-        let keys = await db.list()
-        return keys
-    } catch (err) {
-        console.log(err);
-        
-    }
-    
-}
-
 
 
 // fetch holder list and check if wallet is in true of false
@@ -113,54 +68,128 @@ async function fetchOpenseaBio(address) {
     }
 }
 
+// fetch sols list 
+async function fetchSolsList() {
+    
+    try {
+        const solsList = await axios.get('http://localhost:8000/api/cryptoVillageSols/');
+        return solsList.data
+    } catch(err) {
+        console.log(err);
+    }
+}
 
+// fetch sols user by discord ID 
+async function fetchSolsUser(discordID) {
+    
+    try {
+        const solsList = await axios.get(`http://localhost:8000/api/cryptoVillageSols/${discordID}`);
+        return solsList.data
+    } catch(err) {
+        console.log(err);
+    }
+}
 
+// add new sols user to solsList discord ID 
+async function addSolsList(solsUser) {
+    
+    try {
+        const solsListUser = await axios.post('http://localhost:8000/api/cryptoVillageSols/', solsUser);
+        return solsListUser.data
+    } catch(err) {
+        console.log(err);
+    }
+}
 
+// update  sols user in solsList 
+async function updateSolsList(solsUserID, solsUserUpdate) {
+    
+    try {
+        const solsListUpdate = await axios.put(`http://localhost:8000/api/cryptoVillageSols/${solsUserID}`, solsUserUpdate);
+        return solsListUpdate.data
+    } catch(err) {
+        console.log(err);
+    }
+}
+
+// when bot is ready...
 client.on('ready', async () => {
     client.channels.cache.get("946417287672496145").send("Please enter the wallet you want to verify subscription for to begin");
-    async function getKeysDeleteRoles() {
-        let keys = await listKeys();
-        if (keys === !null ) {
-            for (let i = 0; i < keys.length; i++) {
-                // get key value iwth address token and expiry
-                let keyValue = await getKeyValue(keys[i])
+    async function getSolsDeleteRoles() {
+        let solsList = await fetchSolsList()
+        console.log(solsList)
+        
+        // check if list is empty
+        if (solsList.length >= 1 ) {
+            
+            // do checks for each items in solsList
+            for (let i = 0; i < solsList.length; i++) {
+                
+                // get sols list item and current time
+                let solsUser = solsList[i]
                 let timeStamp = new Date().getUTCMilliseconds();
-                if (keyValue[2] < timeStamp) {
+                
+                // check address token and expiry
+                if (solsUser.expires < timeStamp) {
+                    
                     // query actual token expiry 
-                    let userExpires = await solscriptionContract.ownerOf(solsTokenOwned)
+                    let userExpires = await solscriptionContract.userExpires(solsUser.tokenID)
                     console.log(userExpires);
-                    // if not renewd
+                    
+                    // if not renewed
                     if (userExpires < timeStamp ) {
+                        
                         //remove role
                         const guild =  message.guild;
                         const role = guild.roles.cache.get('1063121737769820270');
-                        const member = guild.members.cache.get(message.author.id);
+                        const member = guild.members.cache.get(solsUser.discordID);
                         member.roles.remove(role);
-                        await deleteKey(keys[i]);
+                    
+                    // if renewed 
+                    } else {
+                        
+                        //update db
+                        const solsUserUpdate = {
+                            expires: userExpires
+                        }
+                        await updateSolsList(solsUser._id, solsUserUpdate);
+                        
+                        // check if role on discord user else add
+                        if(!(member.roles.cache.some(role => role.name === 'Test'))){
+                            member.roles.add(role);
+                        }
                     }
                 }
             }
         } else {
             console.log('no users wallets info')
         }
+        
     }
-    setInterval(getKeysDeleteRoles, 300000)
+    // repeat solsList Sweep for x period
+    setInterval(getSolsDeleteRoles, 1000)
     // login consol message
     console.log(`Logged in as ${client.user.tag}!`);
 });
 
+// when bot sees a message from a specific channel...
 client.on("message", async message => {
     const address = message.content
+    
     // so bot wont reply itself
     if(message.author.bot) return
+    
     // lock bot to specific channel using ID
     if (message.channel.id === "946417287672496145") {
+        
         // Check the message content, and if it's a valid Ethereum address
         if(ethers.utils.isAddress(address)){
             message.reply("Please wait... confirming your solcription...")
+            
             // get sols wallet from async above
             let solsWallet = await fetchWallet(address)
             console.log(solsWallet)
+            
             // check if wallet query has membership token or not
             if (solsWallet.length >= 1) {
                 solsWallet = solsWallet[0].to
@@ -191,8 +220,12 @@ client.on("message", async message => {
                         // Send message with code to the user
                         await message.reply(`Your Wallet ownes subscription token [${solsTokenOwned}] expring on [${new Date(userExpires * 1000)}] Enter code [${code}] into your Opensea Bio to confirm your OWnership and get discord role`);
                         let openseaBio =  await fetchOpenseaBio(address);
-                        if (openseaBio === null) { // empty opensea Bio never set
+                        
+                        
 
+                        if (openseaBio === null) { // empty opensea Bio never set
+                            
+                            // while loop for null bio
                             do {
                                 openseaBio = await fetchOpenseaBio(address);
                                 console.log(openseaBio)
@@ -201,7 +234,8 @@ client.on("message", async message => {
                                 setTimeout(() => {}, 15000);
                             } while (openseaBio === null || openseaBio === "undefined");
                             //loop exit: true
-                            // checkfor code after
+                            
+                            // while loop for added bio check for code after...
                             do {
                                 //check opensea
                                 openseaBio = await fetchOpenseaBio(address);
@@ -214,16 +248,43 @@ client.on("message", async message => {
                             } while (openseaBio.includes(code) === false);
                             //loop exit: true
 
-                            const guild =  message.guild;
-                            const role = guild.roles.cache.get('1068292965606375425');
-                            const member = guild.members.cache.get(message.author.id);
-                            member.roles.add(role);
-                            await setKey(message.author.id, [userOf, solsTokenOwned, userExpires])
-                            
-                            // Send message role added msg to the user
-                            message.reply(`Your discord role assigned you can view all locked channels unlocked by the role`);                        
+                            // check if user is in database
+                            if (fetchSolsUser(message.author.id) === null) {
+                                //add role constants
+                                const guild =  message.guild;
+                                const role = guild.roles.cache.get('1068292965606375425');
+                                const member = guild.members.cache.get(message.author.id);
+                                member.roles.add(role);
+                                
+                                // set info in a database for store
+                                const solsUser = {
+                                    discordID: message.author.id,
+                                    wallet: userOf,
+                                    tokenID: solsTokenOwned,
+                                    expires: userExpires,
+                                }
+                                await addSolsList(solsUser)
+                                
+                                // Send message role added msg to the user
+                                message.reply(`Your discord role assigned you can view all locked channels unlocked by the role`);                        
+                                
+                                
+                            } else {
+                                // set info in a database for store
+                                const solsUser = {
+                                    wallet: userOf
+                                }
+                                await addSolsList(solsUser)
+                                
+                                // Send message role added msg to the user
+                                message.reply(`Your assigned wallet has been changed`);                        
+                                
+                                
+                            }
                             
                         } else { // opensea with bio info already set
+
+                            // while loop for full bio check for code after...
                             do {
                                 //check opensea
                                 openseaBio = await fetchOpenseaBio(address);
@@ -236,14 +297,39 @@ client.on("message", async message => {
                             } while (openseaBio.includes(code) === false);
                             //loop exit: true
                             
-                            const guild =  message.guild;
-                            const role = guild.roles.cache.get('1068292965606375425');
-                            const member = guild.members.cache.get(message.author.id);
-                            member.roles.add(role);
-                            //await setKey(message.author.id, [userOf, solsTokenOwned, userExpires])
-                            
-                            // Send message role added msg to the user
-                            message.reply(`Your discord role assigned you can view all locked channels unlocked by the role`);                        
+                            // check if user is in database
+                            if (fetchSolsUser(message.author.id) === null) {
+                                //add role constants
+                                const guild =  message.guild;
+                                const role = guild.roles.cache.get('1068292965606375425');
+                                const member = guild.members.cache.get(message.author.id);
+                                member.roles.add(role);
+                                
+                                // set info in a database for store
+                                const solsUser = {
+                                    discordID: message.author.id,
+                                    wallet: userOf,
+                                    tokenID: solsTokenOwned,
+                                    expires: userExpires,
+                                }
+                                await addSolsList(solsUser)
+                                
+                                // Send message role added msg to the user
+                                message.reply(`Your discord role assigned you can view all locked channels unlocked by the role`);                        
+                                
+                                
+                            } else {
+                                // set info in a database for store
+                                const solsUser = {
+                                    wallet: userOf
+                                }
+                                await addSolsList(solsUser)
+                                
+                                // Send message role added msg to the user
+                                message.reply(`Your assigned wallet has been changed`);                        
+                                
+                                
+                            }                        
                         }
                     } else {
                         message.reply("subscription not active, please activate it & try again")
